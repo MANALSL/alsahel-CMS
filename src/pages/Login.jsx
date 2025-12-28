@@ -31,7 +31,7 @@ const Login = () => {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
             <Card className="w-full max-w-md shadow-xl border-t-4 border-t-primary-600">
                 <CardHeader className="text-center space-y-2">
-                    <h1 className="text-3xl font-bold text-primary-600">Alsahel CMS</h1>
+                    <h1 className="text-3xl font-bold text-primary-600">couvoir-Jaber</h1>
                     <CardTitle>Connexion</CardTitle>
                     <p className="text-sm text-gray-500">Entrez vos identifiants pour accéder au dashboard</p>
                 </CardHeader>

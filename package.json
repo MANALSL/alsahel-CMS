@@ -1,5 +1,5 @@
 {
-  "name": "alsahel-cms",
+  "name": "couvoir-jaber",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "axios": "^1.13.2",
+    "xlsx": "^0.18.5",
     "chart.js": "^4.5.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

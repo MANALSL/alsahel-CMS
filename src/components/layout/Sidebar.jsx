@@ -18,7 +18,7 @@ const Sidebar = () => {
         <div className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0">
             <div className="p-6 flex items-center justify-center border-b border-gray-100">
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
-                    Alsahel CMS
+                    couvoir-Jaber
                 </h1>
             </div>
 

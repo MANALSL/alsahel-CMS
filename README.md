@@ -1,6 +1,6 @@
-# Alsahel CMS
+# couvoir-Jaber
 
-Professional React Dashboard for Alsahel CMS.
+Professional React Dashboard for couvoir-Jaber.
 
 ## Tech Stack
 

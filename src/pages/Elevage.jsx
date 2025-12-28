@@ -118,9 +118,35 @@ const Elevage = () => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    <div className="text-sm text-gray-500">
-                        {processedData.length} enregistrement(s)
-                    </div>
+                        <div className="flex items-center gap-3">
+                            <div className="text-sm text-gray-500">{processedData.length} enregistrement(s)</div>
+                            <div className="flex items-center gap-2">
+                                <Button variant="secondary" size="sm" onClick={async () => { await elevageService.exportElevages(); }}>
+                                    Exporter Excel
+                                </Button>
+                                <input
+                                    type="file"
+                                    id="elevageImportInput"
+                                    accept=".xlsx,.xls,.csv"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        const res = await elevageService.importElevages(file);
+                                        if (res?.success) {
+                                            await fetchData();
+                                            window.alert(`${res.imported} ligne(s) importées`);
+                                        } else {
+                                            window.alert(res?.message || 'Échec de l\'import');
+                                        }
+                                        e.target.value = '';
+                                    }}
+                                />
+                                <Button variant="ghost" size="sm" onClick={() => document.getElementById('elevageImportInput').click()}>
+                                    Importer Excel
+                                </Button>
+                            </div>
+                        </div>
                 </div>
 
                 <div className="overflow-x-auto">
