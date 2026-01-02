@@ -1,9 +1,10 @@
+import React from 'react';
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, format, isSameMonth, isSameDay, isToday, addMonths, subMonths, parseISO, isBefore } from 'date-fns'; // Removed fr import temporarily to avoid locale issues if not available, will use standard format or try-catch later if needed, but for now simple format is fine.
 import { fr } from 'date-fns/locale'; // Ensure date-fns is installed with locale support
 import { ChevronLeft, ChevronRight, Syringe } from 'lucide-react';
 import { clsx } from 'clsx';
 
-const VaccinationCalendar = ({ events, onDateClick }) => {
+const VaccinationCalendar = ({ events, onDateClick, onEventClick }) => {
     const [currentMonth, setCurrentMonth] = React.useState(new Date());
 
     const days = React.useMemo(() => {
@@ -81,17 +82,27 @@ const VaccinationCalendar = ({ events, onDateClick }) => {
                                 {dayEvents.map(event => (
                                     <div
                                         key={event.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (onEventClick && !event.deleted) {
+                                                onEventClick(event);
+                                            }
+                                        }}
                                         className={clsx(
                                             'text-xs px-1.5 py-1 rounded-md border truncate',
-                                            event.status === 'completed'
-                                                ? 'bg-green-50 text-green-700 border-green-100'
-                                                : isBefore(parseISO(event.date), new Date()) && event.status !== 'completed'
-                                                    ? 'bg-red-50 text-red-700 border-red-100 font-medium'
-                                                    : 'bg-blue-50 text-blue-700 border-blue-100'
+                                            !event.deleted && 'cursor-pointer hover:shadow-md transition-shadow',
+                                            event.deleted
+                                                ? 'bg-gray-100 text-gray-500 border-gray-200 line-through cursor-not-allowed'
+                                                : event.status === 'completed'
+                                                    ? 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100'
+                                                    : isBefore(parseISO(event.date), new Date()) && event.status !== 'completed'
+                                                        ? 'bg-red-50 text-red-700 border-red-100 font-medium hover:bg-red-100'
+                                                        : 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100'
                                         )}
-                                        title={`${event.vaccine} (${event.lot})`}
+                                        title={`${event.vaccine} (${event.lot})${event.deleted ? ' — Supprimé' : ''}`}
                                     >
                                         {event.vaccine} - {event.lot}
+                                        {event.deleted && <span className="ml-1 text-[10px] text-gray-400">(supprimé)</span>}
                                     </div>
                                 ))}
                             </div>
@@ -103,5 +114,4 @@ const VaccinationCalendar = ({ events, onDateClick }) => {
     );
 };
 
-import React from 'react';
 export default VaccinationCalendar;

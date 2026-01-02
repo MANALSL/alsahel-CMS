@@ -5,6 +5,7 @@ import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import { Card, CardContent } from '../components/ui/Card';
 import ElevageForm from '../components/forms/ElevageForm';
+import FermesManager from '../components/management/FermesManager';
 import { Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -21,6 +22,8 @@ const Elevage = () => {
     const [editingItem, setEditingItem] = useState(null);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    const [showHistory, setShowHistory] = useState(false);
+    const [isFermesOpen, setIsFermesOpen] = useState(false);
 
     const fetchData = async () => {
         setLoading(true);
@@ -33,11 +36,17 @@ const Elevage = () => {
         fetchData();
     }, []);
 
+    const deletedCount = data.filter(d => d.deleted).length;
+
     // Filter & Sort
     const processedData = useMemo(() => {
+        const term = search.toLowerCase();
         let filtered = data.filter(item =>
-            item.lot.toLowerCase().includes(search.toLowerCase()) ||
-            item.date.includes(search)
+            !item.deleted && (
+                (item.lot || '').toLowerCase().includes(term) ||
+                (item.date || '').includes(search) ||
+                (item.ferme || '').toLowerCase().includes(term)
+            )
         );
 
         if (sortConfig.key) {
@@ -65,10 +74,17 @@ const Elevage = () => {
     };
 
     const handleSave = async (formData) => {
+        const payload = {
+            ...formData,
+            quantite: Number(formData.quantite || 0),
+            poids: Number(formData.poids || 0),
+            mortalite: Number(formData.mortalite || 0),
+        };
+
         if (editingItem) {
-            await elevageService.updateElevage(editingItem.id, formData);
+            await elevageService.updateElevage(editingItem.id, payload);
         } else {
-            await elevageService.createElevage(formData);
+            await elevageService.createElevage(payload);
         }
         await fetchData();
         setIsFormOpen(false);
@@ -82,6 +98,18 @@ const Elevage = () => {
             setIsDeleteOpen(false);
             setItemToDelete(null);
         }
+    };
+
+    const handleRestore = async (item) => {
+        if (!confirm(`Restaurer l'enregistrement du lot ${item.lot} ?`)) return;
+        await elevageService.restoreElevage(item.id);
+        await fetchData();
+    };
+
+    const handlePurge = async (item) => {
+        if (!confirm(`Supprimer définitivement l'enregistrement du lot ${item.lot} ? Cette action est irréversible.`)) return;
+        await elevageService.purgeElevage(item.id);
+        await fetchData();
     };
 
     const openEdit = (item) => {
@@ -101,10 +129,16 @@ const Elevage = () => {
                     <h1 className="text-3xl font-bold tracking-tight text-gray-900">Gestion Élevage</h1>
                     <p className="text-sm text-gray-500">Gérez les rations et consommations</p>
                 </div>
-                <Button onClick={() => { setEditingItem(null); setIsFormOpen(true); }}>
-                    <Plus size={20} className="mr-2" />
-                    Nouvelle Fiche
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button variant="ghost" onClick={() => setShowHistory(s => !s)}>
+                        Historique ({deletedCount})
+                    </Button>
+                    <Button onClick={() => { setEditingItem(null); setIsFormOpen(true); }}>
+                        <Plus size={20} className="mr-2" />
+                        Nouvelle Fiche
+                    </Button>
+                    <Button variant="secondary" onClick={() => setIsFermesOpen(true)}>Gérer Fermes</Button>
+                </div>
             </div>
 
             <Card>
@@ -112,48 +146,48 @@ const Elevage = () => {
                     <div className="relative w-full sm:w-72">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                         <Input
-                            placeholder="Rechercher par lot ou date..."
+                            placeholder="Rechercher par lot, ferme ou date..."
                             className="pl-10"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                        <div className="flex items-center gap-3">
-                            <div className="text-sm text-gray-500">{processedData.length} enregistrement(s)</div>
-                            <div className="flex items-center gap-2">
-                                <Button variant="secondary" size="sm" onClick={async () => { await elevageService.exportElevages(); }}>
-                                    Exporter Excel
-                                </Button>
-                                <input
-                                    type="file"
-                                    id="elevageImportInput"
-                                    accept=".xlsx,.xls,.csv"
-                                    className="hidden"
-                                    onChange={async (e) => {
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        const res = await elevageService.importElevages(file);
-                                        if (res?.success) {
-                                            await fetchData();
-                                            window.alert(`${res.imported} ligne(s) importées`);
-                                        } else {
-                                            window.alert(res?.message || 'Échec de l\'import');
-                                        }
-                                        e.target.value = '';
-                                    }}
-                                />
-                                <Button variant="ghost" size="sm" onClick={() => document.getElementById('elevageImportInput').click()}>
-                                    Importer Excel
-                                </Button>
-                            </div>
+                    <div className="flex items-center gap-3">
+                        <div className="text-sm text-gray-500">{processedData.length} enregistrement(s)</div>
+                        <div className="flex items-center gap-2">
+                            <Button variant="secondary" size="sm" onClick={async () => { await elevageService.exportElevages(); }}>
+                                Exporter Excel
+                            </Button>
+                            <input
+                                type="file"
+                                id="elevageImportInput"
+                                accept=".xlsx,.xls,.csv"
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const res = await elevageService.importElevages(file);
+                                    if (res?.success) {
+                                        await fetchData();
+                                        window.alert(`${res.imported} ligne(s) importées`);
+                                    } else {
+                                        window.alert(res?.message || 'Échec de l\'import');
+                                    }
+                                    e.target.value = '';
+                                }}
+                            />
+                            <Button variant="ghost" size="sm" onClick={() => document.getElementById('elevageImportInput').click()}>
+                                Importer Excel
+                            </Button>
                         </div>
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50/50">
                             <tr>
-                                {['date', 'lot', 'aliment', 'quantite'].map((key) => (
+                                {['date', 'lot', 'ferme', 'aliment', 'quantite', 'poids', 'mortalite'].map((key) => (
                                     <th key={key} className="px-6 py-4 font-medium cursor-pointer hover:bg-gray-100" onClick={() => handleSort(key)}>
                                         <div className="flex items-center gap-1">
                                             {key.charAt(0).toUpperCase() + key.slice(1)}
@@ -167,9 +201,9 @@ const Elevage = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-gray-500">Chargement...</td></tr>
+                                <tr><td colSpan="9" className="p-8 text-center text-gray-500">Chargement...</td></tr>
                             ) : paginatedData.length === 0 ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-gray-500">Aucune donnée trouvée</td></tr>
+                                <tr><td colSpan="9" className="p-8 text-center text-gray-500">Aucune donnée trouvée</td></tr>
                             ) : (
                                 paginatedData.map((item) => (
                                     <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
@@ -179,8 +213,11 @@ const Elevage = () => {
                                                 {item.lot}
                                             </span>
                                         </td>
+                                        <td className="px-6 py-4 text-gray-700">{item.ferme || '-'}</td>
                                         <td className="px-6 py-4 text-gray-600">{item.aliment}</td>
                                         <td className="px-6 py-4 font-mono font-medium">{item.quantite} kg</td>
+                                        <td className="px-6 py-4 font-mono text-gray-700">{item.poids ? `${item.poids} g` : '-'}</td>
+                                        <td className="px-6 py-4 text-gray-700">{item.mortalite !== undefined && item.mortalite !== null ? `${item.mortalite}%` : '-'}</td>
                                         <td className="px-6 py-4 text-gray-500 truncate max-w-xs">{item.observation || '-'}</td>
                                         <td className="px-6 py-4 text-right space-x-2">
                                             <button onClick={() => openEdit(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
@@ -222,6 +259,56 @@ const Elevage = () => {
                     </div>
                 )}
             </Card>
+
+            <FermesManager isOpen={isFermesOpen} onClose={() => setIsFermesOpen(false)} />
+
+            {/* Deleted / History Card (toggle visible) */}
+            {showHistory && (
+                <Card>
+                    <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-medium">Historique (supprimés)</h2>
+                            <p className="text-sm text-gray-500">Enregistrements supprimés (historique)</p>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50/50">
+                                <tr>
+                                    <th className="px-6 py-3">Date</th>
+                                    <th className="px-6 py-3">Lot</th>
+                                    <th className="px-6 py-3">Ferme</th>
+                                    <th className="px-6 py-3">Aliment</th>
+                                    <th className="px-6 py-3">Quantité</th>
+                                    <th className="px-6 py-3">Supprimé le</th>
+                                    <th className="px-6 py-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {loading ? (
+                                    <tr><td colSpan="7" className="p-8 text-center text-gray-500">Chargement...</td></tr>
+                                ) : (
+                                    data.filter(d => d.deleted).map(item => (
+                                        <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-gray-900">{item.date}</td>
+                                            <td className="px-6 py-4">{item.lot}</td>
+                                            <td className="px-6 py-4 text-gray-700">{item.ferme || '-'}</td>
+                                            <td className="px-6 py-4 text-gray-600">{item.aliment}</td>
+                                            <td className="px-6 py-4 font-mono">{item.quantite} kg</td>
+                                            <td className="px-6 py-4 text-gray-500">{item.deletedAt ? new Date(item.deletedAt).toLocaleString() : '-'}</td>
+                                            <td className="px-6 py-4 text-right space-x-2">
+                                                <button onClick={() => handleRestore(item)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">Restaurer</button>
+                                                <button onClick={() => handlePurge(item)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">Supprimer définitivement</button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            )}
 
             {/* Forms Modal */}
             <Modal

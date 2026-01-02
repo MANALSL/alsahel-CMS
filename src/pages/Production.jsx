@@ -11,6 +11,7 @@ const Production = () => {
                 <h1 className="text-3xl font-bold text-gray-900">Module Production</h1>
                 <p className="text-gray-500 max-w-md mx-auto">
                     Ce module est en cours de développement. Il permettra bientôt de suivre la production en temps réel.
+                   
                 </p>
             </div>
             <Card className="max-w-md w-full p-6 bg-gradient-to-r from-orange-50 to-amber-50 border-orange-100">
@@ -19,6 +20,7 @@ const Production = () => {
                     <li>Suivi des cycles de production</li>
                     <li>Gestion des stocks MP</li>
                     <li>Rapports de rendement</li>
+
                 </ul>
             </Card>
         </div>

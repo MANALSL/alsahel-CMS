@@ -17,9 +17,11 @@ const Sidebar = () => {
     return (
         <div className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0">
             <div className="p-6 flex items-center justify-center border-b border-gray-100">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
-                    couvoir-Jaber
-                </h1>
+                <img
+                    src="/logo.png"
+                    alt="Couvoir Jaber"
+                    className="h-20 w-auto object-contain"
+                />
             </div>
 
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

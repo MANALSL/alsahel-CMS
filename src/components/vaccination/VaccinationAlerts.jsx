@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle, Clock } from 'lucide-react';
-import { differenceInDays, parseISO, isBefore, isToday } from 'date-fns';
+import { differenceInDays, parseISO, isBefore, isToday, format } from 'date-fns';
 import { clsx } from 'clsx';
 
 const AlertCard = ({ title, message, type = 'info', date }) => {
@@ -33,29 +33,52 @@ const AlertCard = ({ title, message, type = 'info', date }) => {
     );
 };
 
-const VaccinationAlerts = ({ vaccinations, onMarkComplete }) => {
-    const alerts = vaccinations.reduce((acc, v) => {
+const VaccinationAlerts = ({ vaccinations = [], treatments = [], onMarkComplete, onEdit, onDelete }) => {
+    // merge vaccinations and treatments into a single list of items
+    const items = [
+        ...vaccinations.map(v => ({ ...v, isTreatment: false })),
+        ...treatments.map(t => ({ id: `t-${t.id}`, date: t.date, vaccine: t.name, lot: t.protocol || t.notes || 'Traitement', status: 'planned', isTreatment: true }))
+    ];
+
+    const alerts = items.reduce((acc, v) => {
+        if (v.deleted) return acc; // skip deleted entries in alerts (they remain in history)
         if (v.status === 'completed') return acc;
 
         const date = parseISO(v.date);
         const today = new Date();
+        const diff = differenceInDays(date, today);
 
-        // Overdue
+        // Overdue -> danger
         if (isBefore(date, today) && !isToday(date)) {
             acc.push({
                 ...v,
                 type: 'danger',
-                title: 'Vaccin en retard !',
-                message: `Le vaccin ${v.vaccine} pour le lot ${v.lot} devait être fait.`
+                title: v.isTreatment ? 'Traitement en retard !' : 'Vaccin en retard !',
+                message: v.isTreatment
+                    ? `Le traitement "${v.vaccine}" (protocole ${v.lot}) était prévu.`
+                    : `Le vaccin ${v.vaccine} pour la ferme ${v.lot} devait être fait.`
             });
         }
-        // Today or Tomorrow
-        else if (differenceInDays(date, today) <= 2 && differenceInDays(date, today) >= 0) {
+        // Today or Tomorrow -> warning
+        else if (diff <= 2 && diff >= 0) {
             acc.push({
                 ...v,
                 type: 'warning',
-                title: 'Vaccin imminent',
-                message: `Rappel : ${v.vaccine} pour le lot ${v.lot} est prévu pour ${isToday(date) ? "aujourd'hui" : "bientôt"}.`
+                title: v.isTreatment ? 'Traitement imminent' : 'Vaccin imminent',
+                message: v.isTreatment
+                    ? `Rappel : traitement ${v.vaccine} (${v.lot}) est prévu ${isToday(date) ? "aujourd'hui" : "bientôt"}.`
+                    : `Rappel : ${v.vaccine} pour la ferme ${v.lot} est prévu pour ${isToday(date) ? "aujourd'hui" : "bientôt"}.`
+            });
+        }
+        // Otherwise include as informational alert so saved calendar items are visible
+        else {
+            acc.push({
+                ...v,
+                type: 'info',
+                title: v.isTreatment ? 'Traitement programmé' : 'Vaccin programmé',
+                message: v.isTreatment
+                    ? `Planifié le ${format(date, 'dd/MM/yyyy')} : ${v.vaccine} (protocole ${v.lot})`
+                    : `Planifié le ${format(date, 'dd/MM/yyyy')} : ${v.vaccine} (ferme ${v.lot})`
             });
         }
 
@@ -91,12 +114,26 @@ const VaccinationAlerts = ({ vaccinations, onMarkComplete }) => {
                             type={alert.type}
                             date={alert.date}
                         />
-                        <button
-                            onClick={() => onMarkComplete(alert.id)}
-                            className="absolute top-2 right-2 bg-white/50 hover:bg-white text-xs px-2 py-1 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border"
-                        >
-                            Marquer fait
-                        </button>
+                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                onClick={() => onEdit && onEdit(alert)}
+                                className="bg-white/50 hover:bg-white text-xs px-2 py-1 rounded shadow-sm border"
+                            >
+                                Modifier
+                            </button>
+                            <button
+                                onClick={() => onMarkComplete(alert.id)}
+                                className="bg-white/50 hover:bg-white text-xs px-2 py-1 rounded shadow-sm border"
+                            >
+                                Marquer fait
+                            </button>
+                            <button
+                                onClick={() => onDelete && onDelete(alert)}
+                                className="bg-white/50 hover:bg-white text-xs px-2 py-1 rounded shadow-sm border text-red-600"
+                            >
+                                Supprimer
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>

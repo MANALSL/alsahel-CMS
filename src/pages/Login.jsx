@@ -33,7 +33,7 @@ const Login = () => {
                 <CardHeader className="text-center space-y-2">
                     <h1 className="text-3xl font-bold text-primary-600">couvoir-Jaber</h1>
                     <CardTitle>Connexion</CardTitle>
-                    <p className="text-sm text-gray-500">Entrez vos identifiants pour accéder au dashboard</p>
+                    <p className="text-sm text-gray-500">Entrez vos identifiants pour accéder à l'application</p>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,7 +62,7 @@ const Login = () => {
                             {loading ? 'Connexion...' : 'Se connecter'}
                         </Button>
                         <div className="text-xs text-center text-gray-400">
-                            Demo: admin / admin
+                           admin
                         </div>
                     </form>
                 </CardContent>
