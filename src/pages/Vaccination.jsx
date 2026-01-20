@@ -340,81 +340,7 @@ const Vaccination = () => {
                     />
 
                     <div className="mt-6">
-                        <Card>
-                            <div className="p-4 border-b border-gray-100">
-                                <h3 className="font-semibold">Planificateur de vaccination</h3>
-                                    <p className="text-sm text-gray-500">Calcule les rappels recommandés selon l'âge (jours) et la dernière date de traitement. Sélectionnez un traitement pour utiliser sa date et protocole.</p>
-                            </div>
-                            <div className="p-4 space-y-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Traitement</label>
-                                        <select value={selectedTreatmentId || ''} onChange={(e) => setSelectedTreatmentId(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full rounded-md border px-3 py-2 text-sm">
-                                            <option value="">-- Aucun (utilise la date saisie) --</option>
-                                            {treatments.map(t => (
-                                                <option key={t.id} value={t.id}>{t.name} — {new Date(t.date).toLocaleDateString()} ({t.protocol})</option>
-                                            ))}
-                                        </select>
-                                        <div className="flex gap-2 mt-2">
-                                            <button className="text-sm text-primary-600" type="button" onClick={() => {
-                                                // toggle simple inline manage panel
-                                                setEditingTreatmentId(null);
-                                                setTreatmentForm({ name: '', date: '', protocol: Object.keys(protocols)[0] || 'standard', notes: '' });
-                                            }}>Ajouter un traitement</button>
-                                        </div>
-                                    </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Âge (jours)</label>
-                                    <input type="number" min="0" value={ageDays} onChange={(e) => setAgeDays(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Ex: 60" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Date du dernier traitement</label>
-                                        <input type="date" value={lastTreatment} onChange={(e) => setLastTreatment(e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm" />
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button type="button" onClick={async () => {
-                                        setComputingSchedule(true);
-                                        const age = ageDays === '' ? 0 : parseInt(ageDays, 10);
-                                        // determine treatment date/protocol
-                                        let treatmentDate = lastTreatment || undefined;
-                                        let protocolName = undefined;
-                                        if (selectedTreatmentId) {
-                                            const t = treatments.find(tt => tt.id === selectedTreatmentId);
-                                            if (t) {
-                                                treatmentDate = t.date;
-                                                protocolName = t.protocol;
-                                            }
-                                        }
-                                        const sched = await vaccinationService.getVaccinationSchedule(age, treatmentDate, 'days', protocolName);
-                                        setSchedule(sched);
-                                        setComputingSchedule(false);
-                                    }}>
-                                        {computingSchedule ? 'Calcul...' : 'Calculer le plan'}
-                                    </Button>
-                                    <Button variant="secondary" type="button" onClick={() => { setAgeDays(''); setLastTreatment(''); setSchedule([]); }}>Réinitialiser</Button>
-                                </div>
 
-                                {schedule.length > 0 && (
-                                    <div className="mt-2">
-                                        <h4 className="font-medium">Recommandations</h4>
-                                        <ul className="mt-2 space-y-2 text-sm">
-                                            {schedule.map(s => (
-                                                <li key={s.dose} className="flex justify-between items-center">
-                                                    <div>
-                                                        <div className="font-medium">Dose {s.dose} <span className="text-xs text-gray-500">({s.daysAfterLast} j après)</span></div>
-                                                        <div className="text-gray-600">{new Date(s.date).toLocaleDateString()}</div>
-                                                    </div>
-                                                    <div>
-                                                        {s.status === 'passed' ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700">Passé</span> : null}
-                                                        {s.status === 'due' ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700">À faire</span> : null}
-                                                        {s.status === 'upcoming' ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">À venir</span> : null}
-                                                    </div>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                            </div>
-                        </Card>
                     </div>
                 </div>
             </div>
@@ -516,7 +442,7 @@ const Vaccination = () => {
             {showHistory && (
                 <div>
                     <Card>
-                        
+
                         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                             <div>
                                 <h2 className="text-lg font-medium">Historique des vaccinations (supprimés)</h2>

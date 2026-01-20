@@ -6,7 +6,7 @@ import Button from '../ui/Button';
 const FermesManager = ({ isOpen, onClose }) => {
     const [fermes, setFermes] = useState([]);
     const [editing, setEditing] = useState(null);
-    const [form, setForm] = useState({ name: '', structure: [] });
+    const [form, setForm] = useState({ name: '', lot: '', structure: [] });
     const [selectedFerme, setSelectedFerme] = useState(null);
     const [fermeRecords, setFermeRecords] = useState([]);
 
@@ -26,7 +26,7 @@ const FermesManager = ({ isOpen, onClose }) => {
     const loadRecords = async () => {
         const all = await elevageService.getElevages();
         const filtered = (all || []).filter(r => r.ferme === selectedFerme.name);
-        setFermeRecords(filtered.sort((a,b)=> new Date(a.date) - new Date(b.date)));
+        setFermeRecords(filtered.sort((a, b) => new Date(a.date) - new Date(b.date)));
     };
 
     const exportFiltered = async () => {
@@ -48,7 +48,7 @@ const FermesManager = ({ isOpen, onClose }) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${selectedFerme.name || 'ferme'}_records_${new Date().toISOString().slice(0,10)}.xlsx`;
+        a.download = `${selectedFerme.name || 'ferme'}_records_${new Date().toISOString().slice(0, 10)}.xlsx`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -62,12 +62,12 @@ const FermesManager = ({ isOpen, onClose }) => {
 
     const openNew = () => {
         setEditing(null);
-        setForm({ name: '', structure: defaultStructure() });
+        setForm({ name: '', lot: '', structure: defaultStructure() });
     };
 
     const openEdit = (f) => {
         setEditing(f.id);
-        setForm({ ...f });
+        setForm({ ...f, lot: f.lot || '' });
     };
 
     const save = async () => {
@@ -79,7 +79,7 @@ const FermesManager = ({ isOpen, onClose }) => {
         }
         await load();
         setEditing(null);
-        setForm({ name: '', structure: [] });
+        setForm({ name: '', lot: '', structure: [] });
     };
 
     const remove = async (id) => {
@@ -111,7 +111,7 @@ const FermesManager = ({ isOpen, onClose }) => {
                         <div key={f.id} className="flex items-center justify-between p-2 border rounded hover:shadow-sm">
                             <div className="cursor-pointer" onClick={() => setSelectedFerme(f)}>
                                 <div className="font-medium">{f.name}</div>
-                                <div className="text-xs text-gray-500">{(f.structure || []).length} bâtiments</div>
+                                <div className="text-xs text-gray-500">{(f.structure || []).length} bâtiments • {f.lot || 'Sans lot'}</div>
                             </div>
                             <div className="flex gap-2">
                                 <Button size="sm" variant="ghost" onClick={() => openEdit(f)}>Modifier</Button>
@@ -209,7 +209,10 @@ const FermesManager = ({ isOpen, onClose }) => {
                 <div className="pt-2 border-t">
                     <h5 className="font-medium">{editing ? 'Modifier ferme' : 'Nouvelle ferme'}</h5>
                     <div className="mt-2 space-y-2">
-                        <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Nom de la ferme" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+                        <div className="grid grid-cols-2 gap-2">
+                            <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Nom de la ferme" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+                            <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Lot (ex: LOT-001)" value={form.lot} onChange={(e) => setForm(f => ({ ...f, lot: e.target.value }))} />
+                        </div>
 
                         <div className="grid grid-cols-1 gap-2">
                             {(form.structure || defaultStructure()).map((b, bIdx) => (
