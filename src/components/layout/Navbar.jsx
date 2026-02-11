@@ -50,11 +50,11 @@ const Navbar = ({ onMenuClick }) => {
             <div className="flex items-center space-x-4">
                 <button onClick={() => setOpen(true)} className="flex items-center space-x-3 focus:outline-none">
                     <div className="flex flex-col items-end">
-                        <span className="text-sm font-semibold text-gray-900">{user?.name || 'Admin'}</span>
+                        <span className="text-sm font-semibold text-gray-900">{user?.username || 'Admin'}</span>
                         <span className="text-xs text-gray-500 capitalize">{user?.role || 'Administrator'}</span>
                     </div>
                     <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary-500 to-secondary-500 flex items-center justify-center text-white font-bold shadow-md ring-2 ring-white">
-                        {user?.name?.[0]?.toUpperCase() || 'A'}
+                        {user?.username?.[0]?.toUpperCase() || 'A'}
                     </div>
                 </button>
             </div>
@@ -63,7 +63,7 @@ const Navbar = ({ onMenuClick }) => {
                 <div className="space-y-4">
                     <div>
                         <div className="text-sm text-gray-600">Nom</div>
-                        <div className="font-medium">{user?.name || 'Admin'}</div>
+                        <div className="font-medium">{user?.username || 'Admin'}</div>
                     </div>
                     <div>
                         <div className="text-sm text-gray-600">Rôle</div>

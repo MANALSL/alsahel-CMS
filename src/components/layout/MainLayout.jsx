@@ -7,12 +7,12 @@ const MainLayout = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        <div className="min-h-screen bg-gray-50 flex overflow-x-hidden">
             <Sidebar />
 
-            <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300">
+            <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300 overflow-x-hidden">
                 <Navbar onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
-                <main className="flex-1 p-6 overflow-x-hidden">
+                <main className="flex-1 p-6 overflow-x-hidden w-full">
                     <Outlet />
                 </main>
             </div>

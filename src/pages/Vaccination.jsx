@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { vaccinationService } from '../services/vaccinationService';
+import { elevageService } from '../services/elevageService';
 import VaccinationCalendar from '../components/vaccination/VaccinationCalendar';
 import VaccinationAlerts from '../components/vaccination/VaccinationAlerts';
 import { Card } from '../components/ui/Card';
@@ -7,7 +8,7 @@ import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Plus, Check, Syringe } from 'lucide-react';
+import { Plus, Check, Syringe, Activity, Calendar, FileText, Trash2, Edit3, Pill, ClipboardList, Archive, EyeOff, Info, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 const Vaccination = () => {
@@ -26,20 +27,32 @@ const Vaccination = () => {
     const { register, handleSubmit, reset, setValue } = useForm();
     const [treatments, setTreatments] = useState([]);
     const [selectedTreatmentId, setSelectedTreatmentId] = useState(null);
-    const [protocols, setProtocols] = useState({});
+
     const [treatmentForm, setTreatmentForm] = useState({ name: '', date: '', protocol: 'standard', notes: '' });
     const [editingTreatmentId, setEditingTreatmentId] = useState(null);
     const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
+    const [parcs, setParcs] = useState([]);
 
     const loadData = async () => {
         setLoading(true);
-        const result = await vaccinationService.getVaccinations();
-        setData(result);
-        // load treatments and protocols too
-        const t = await vaccinationService.getTreatments();
-        setTreatments(t);
-        const p = await vaccinationService.getProtocols();
-        setProtocols(p || {});
+        try {
+            const result = await vaccinationService.getVaccinations();
+            setData(result);
+
+            // load treatments
+            try {
+                const t = await vaccinationService.getTreatments();
+                setTreatments(t);
+            } catch (e) {
+                console.log("Treatments not available yet");
+            }
+
+            // Load parcs for selection
+            const p = await elevageService.getParcs();
+            setParcs(p);
+        } catch (error) {
+            console.error("Error loading data:", error);
+        }
         setLoading(false);
     };
 
@@ -145,6 +158,7 @@ const Vaccination = () => {
         setValue('date', new Date(vaccine.date).toISOString().split('T')[0]);
         setValue('vaccine', vaccine.vaccine || '');
         setValue('lot', vaccine.lot || '');
+        setValue('parc_id', vaccine.parc_id || '');
         setValue('type', vaccine.type || 'primary');
         setIsModalOpen(true);
     };
@@ -212,47 +226,92 @@ const Vaccination = () => {
                 <div className="lg:col-span-2 space-y-6">
                     <VaccinationCalendar events={calendarEvents} onDateClick={onDateClick} onEventClick={handleCalendarEventClick} />
 
-                    <div className="bg-white p-4 rounded-xl border border-gray-100">
-                        <h3 className="font-semibold mb-3">Légende</h3>
-                        <div className="flex gap-4 text-xs">
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-200 mr-2"></span> Fait</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-blue-100 border border-blue-200 mr-2"></span> Planifié</div>
-                            <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-100 border border-red-200 mr-2"></span> En retard</div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Info size={18} className="text-blue-500" />
+                            <h3 className="font-bold text-gray-900">Légende du Calendrier</h3>
+                        </div>
+                        <div className="flex flex-wrap gap-4">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-100 rounded-xl text-xs font-bold text-green-700">
+                                <CheckCircle2 size={14} /> Vaccin Fait
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl text-xs font-bold text-blue-700">
+                                <Clock size={14} /> Programmé
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-100 rounded-xl text-xs font-bold text-red-700">
+                                <AlertCircle size={14} /> En retard
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-xl text-xs font-bold text-emerald-700">
+                                <Pill size={14} /> Traitement
+                            </div>
                         </div>
                     </div>
 
                     {/* Masqués / Fait table placed under calendar */}
-                    <div className="mt-6">
-                        <Card>
-                            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-lg font-medium">Masqués / Fait</h3>
-                                    <p className="text-sm text-gray-500">Vaccins masqués ou marqués comme faits</p>
-                                </div>
+                    <div className="mt-8">
+                        <div className="flex items-center justify-between mb-4 px-2">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                    <Archive className="text-gray-500" size={24} />
+                                    Masqués & Confirmés
+                                </h3>
+                                <p className="text-sm text-gray-500">Historique des vaccins réalisés ou archivés</p>
                             </div>
+                        </div>
 
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="text-xs text-gray-700 uppercase bg-gray-50/50">
+                                <table className="w-full text-sm text-left border-collapse">
+                                    <thead className="bg-gray-50/50">
                                         <tr>
-                                            <th className="px-6 py-3">Date</th>
-                                            <th className="px-6 py-3">Vaccin</th>
-                                            <th className="px-6 py-3">Ferme</th>
-                                            <th className="px-6 py-3">Statut</th>
+                                            <th className="px-6 py-4 font-bold text-gray-700 uppercase tracking-wider text-[10px] border-b border-gray-100">Date d'intervention</th>
+                                            <th className="px-6 py-4 font-bold text-gray-700 uppercase tracking-wider text-[10px] border-b border-gray-100">Vaccin / Produit</th>
+                                            <th className="px-6 py-4 font-bold text-gray-700 uppercase tracking-wider text-[10px] border-b border-gray-100">Localisation</th>
+                                            <th className="px-6 py-4 font-bold text-gray-700 uppercase tracking-wider text-[10px] border-b border-gray-100 text-right">Statut Final</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                         {data.filter(d => d.hidden || d.status === 'completed').length === 0 ? (
-                                            <tr><td colSpan="4" className="p-6 text-center text-gray-500">Aucun vaccin masqué ou fait</td></tr>
+                                            <tr>
+                                                <td colSpan="4" className="px-6 py-12 text-center text-gray-400 italic bg-gray-50/30">
+                                                    Aucune archive à afficher pour le moment
+                                                </td>
+                                            </tr>
                                         ) : (
                                             data.filter(d => d.hidden || d.status === 'completed').map(v => (
-                                                <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="px-6 py-4">{new Date(v.date).toLocaleDateString()}</td>
-                                                    <td className="px-6 py-4">{v.vaccine}</td>
-                                                    <td className="px-6 py-4">{v.lot}</td>
+                                                <tr key={v.id} className="hover:bg-gray-50/80 transition-colors group">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2 text-gray-600">
+                                                            <Calendar size={14} className="text-blue-400" />
+                                                            <span className="font-medium text-xs text-gray-900">{new Date(v.date).toLocaleDateString('fr-FR')}</span>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-6 py-4">
-                                                        {v.hidden ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">Masqué</span> : null}
-                                                        {v.status === 'completed' ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 ml-2">Fait</span> : null}
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-gray-900 group-hover:text-primary-600 transition-colors">{v.vaccine}</span>
+                                                            <span className="text-[10px] text-gray-400 flex items-center gap-1 uppercase tracking-tighter">
+                                                                <Syringe size={10} /> Vaccination de routine
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[11px] font-bold">
+                                                            # {v.lot}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            {v.hidden && (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-tight">
+                                                                    <EyeOff size={10} /> Masqué
+                                                                </span>
+                                                            )}
+                                                            {v.status === 'completed' && (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-green-50 text-green-700 border border-green-100 uppercase tracking-tight">
+                                                                    <Check size={10} /> Confirmé
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))
@@ -260,52 +319,84 @@ const Vaccination = () => {
                                     </tbody>
                                 </table>
                             </div>
-                        </Card>
+                        </div>
                     </div>
 
-                    <div className="mt-6">
-                        <Card>
-                            <div className="p-4 border-b border-gray-100">
-                                <h3 className="font-semibold">Gestion des traitements</h3>
-                                <p className="text-sm text-gray-500">Ajouter, modifier ou supprimer des traitements utilisés pour calculer les rappels.</p>
+                    <div className="mt-8">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                    <Activity className="text-emerald-500" size={24} />
+                                    Gestion des traitements
+                                </h3>
+                                <p className="text-sm text-gray-500">Suivi des interventions médicales et rappels</p>
                             </div>
-                            <div className="p-4 space-y-3">
-                                <div className="space-y-2">
-                                    {treatments.length === 0 ? <div className="text-sm text-gray-500">Aucun traitement défini.</div> : (
-                                        <ul className="space-y-2 text-sm">
-                                            {treatments.map(t => (
-                                                <li key={t.id} className="flex items-center justify-between">
-                                                    <div>
-                                                        <div className="font-medium">{t.name} <span className="text-xs text-gray-500">({t.protocol})</span></div>
-                                                        <div className="text-gray-600 text-xs">{new Date(t.date).toLocaleDateString()} — {t.notes || '-'}</div>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button onClick={() => editTreatment(t)} className="text-sm text-primary-600">Modifier</button>
-                                                        <button onClick={() => removeTreatment(t.id)} className="text-sm text-red-600">Supprimer</button>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
+                            <Button
+                                onClick={() => {
+                                    setTreatmentForm({ name: '', date: new Date().toISOString().split('T')[0], protocol: 'standard', notes: '' });
+                                    setEditingTreatmentId(null);
+                                    setIsTreatmentModalOpen(true);
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            >
+                                <Plus size={18} className="mr-2" />
+                                Nouveau traitement
+                            </Button>
+                        </div>
 
-                                <div className="pt-2 border-t pt-3">
-                                    <h4 className="font-medium">Ajouter / Modifier</h4>
-                                    <div className="space-y-2 mt-2">
-                                        <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Nom du traitement" value={treatmentForm.name} onChange={(e) => setTreatmentForm(f => ({ ...f, name: e.target.value }))} />
-                                        <input type="date" className="w-full rounded-md border px-3 py-2 text-sm" value={treatmentForm.date} onChange={(e) => setTreatmentForm(f => ({ ...f, date: e.target.value }))} />
-                                        <select className="w-full rounded-md border px-3 py-2 text-sm" value={treatmentForm.protocol} onChange={(e) => setTreatmentForm(f => ({ ...f, protocol: e.target.value }))}>
-                                            {Object.keys(protocols).map(k => <option key={k} value={k}>{k}</option>)}
-                                        </select>
-                                        <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Notes" value={treatmentForm.notes} onChange={(e) => setTreatmentForm(f => ({ ...f, notes: e.target.value }))} />
-                                        <div className="flex gap-2">
-                                            <Button type="button" onClick={saveTreatment}>{editingTreatmentId ? 'Enregistrer' : 'Ajouter'}</Button>
-                                            <Button variant="secondary" type="button" onClick={() => { setTreatmentForm({ name: '', date: '', protocol: Object.keys(protocols)[0] || 'standard', notes: '' }); setEditingTreatmentId(null); }}>Annuler</Button>
-                                        </div>
-                                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {treatments.length === 0 ? (
+                                <div className="col-span-full py-12 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                                    <ClipboardList className="mx-auto text-gray-300 mb-3" size={48} />
+                                    <p className="text-gray-500 font-medium">Aucun traitement programmé</p>
+                                    <p className="text-xs text-gray-400 mt-1">Cliquez sur "Nouveau traitement" pour commencer</p>
                                 </div>
-                            </div>
-                        </Card>
+                            ) : (
+                                treatments.map(t => (
+                                    <div key={t.id} className="group bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-100 transition-all duration-300">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors">
+                                                    <Pill size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">{t.name}</h4>
+                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                                                        <Calendar size={12} className="text-emerald-500" />
+                                                        {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => editTreatment(t)}
+                                                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                    title="Modifier"
+                                                >
+                                                    <Edit3 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => removeTreatment(t.id)}
+                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                    title="Supprimer"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {t.notes && (
+                                            <div className="bg-gray-50 rounded-xl p-3 flex items-start gap-2 border border-gray-50 group-hover:bg-emerald-50/30 group-hover:border-emerald-50 transition-colors">
+                                                <FileText className="text-gray-400 shrink-0 mt-0.5" size={14} />
+                                                <p className="text-xs text-gray-600 leading-relaxed italic">
+                                                    {t.notes}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -368,6 +459,18 @@ const Vaccination = () => {
                         {...register('lot', { required: true })}
                     />
                     <div className="w-full">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Parc</label>
+                        <select
+                            className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            {...register('parc_id', { required: true })}
+                        >
+                            <option value="">Sélectionner un parc</option>
+                            {parcs.map(p => (
+                                <option key={p.id} value={p.id}>{p.name} ({p.lot || 'Sans lot'})</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="w-full">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                         <select
                             className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -401,7 +504,7 @@ const Vaccination = () => {
 
             <Modal
                 isOpen={isTreatmentModalOpen}
-                onClose={() => { setIsTreatmentModalOpen(false); setEditingTreatmentId(null); setTreatmentForm({ name: '', date: '', protocol: Object.keys(protocols)[0] || 'standard', notes: '' }); }}
+                onClose={() => { setIsTreatmentModalOpen(false); setEditingTreatmentId(null); setTreatmentForm({ name: '', date: '', protocol: 'standard', notes: '' }); }}
                 title={editingTreatmentId ? "Détails du traitement" : "Nouveau traitement"}
             >
                 <div className="space-y-4">
@@ -413,12 +516,7 @@ const Vaccination = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                         <input type="date" className="w-full rounded-md border px-3 py-2 text-sm" value={treatmentForm.date} onChange={(e) => setTreatmentForm(f => ({ ...f, date: e.target.value }))} />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Protocole</label>
-                        <select className="w-full rounded-md border px-3 py-2 text-sm" value={treatmentForm.protocol} onChange={(e) => setTreatmentForm(f => ({ ...f, protocol: e.target.value }))}>
-                            {Object.keys(protocols).map(k => <option key={k} value={k}>{k}</option>)}
-                        </select>
-                    </div>
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                         <input className="w-full rounded-md border px-3 py-2 text-sm" value={treatmentForm.notes} onChange={(e) => setTreatmentForm(f => ({ ...f, notes: e.target.value }))} />

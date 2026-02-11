@@ -17,7 +17,9 @@ const Modal = ({ isOpen, onClose, title, children, size = 'default' }) => {
         small: 'max-w-md',
         default: 'max-w-lg',
         large: 'max-w-3xl',
-        xlarge: 'max-w-5xl'
+        xlarge: 'max-w-5xl',
+        xxl: 'max-w-7xl',
+        full: 'max-w-[95vw]'
     };
 
     return createPortal(

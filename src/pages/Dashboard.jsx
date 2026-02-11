@@ -1,367 +1,286 @@
-import { useEffect, useState } from 'react';
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-} from 'chart.js';
-import { Line, Bar } from 'react-chartjs-2';
+import { useEffect, useState, useMemo } from 'react';
 import { elevageService } from '../services/elevageService';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import Modal from '../components/ui/Modal';
-import { Users, Package, Activity, TrendingUp } from 'lucide-react';
-
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
-);
+import { Card } from '../components/ui/Card';
+import { TrendingUp, Grid3x3, LayoutDashboard, Search, Users, Scale, AlertTriangle, Activity } from 'lucide-react';
+import ElevageCharts from '../components/charts/ElevageCharts';
 
 const Dashboard = () => {
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState({
-        totalEntries: 0,
-        totalQuantity: 0,
-        uniqueLots: 0,
-    });
-    const [records, setRecords] = useState([]);
-    const [showModal, setShowModal] = useState(false);
-    const [modalType, setModalType] = useState('records'); // 'records' | 'quantity' | 'fermes'
-    const [chartData, setChartData] = useState({
-        line: { labels: [], datasets: [] },
-        bar: { labels: [], datasets: [] },
-        mortality: { labels: [], datasets: [] },
-    });
+    const [allData, setAllData] = useState([]);
+    const [fermes, setFermes] = useState([]);
+    const [kpis, setKpis] = useState(null);
+    const [search, setSearch] = useState('');
 
     useEffect(() => {
         const fetchData = async () => {
-            const data = await elevageService.getElevages();
+            try {
+                const [elevages, fermesList, globalKpis] = await Promise.all([
+                    elevageService.getElevages(),
+                    elevageService.getFermes(),
+                    elevageService.getGlobalKPIs().catch(() => null) // Fallback if endpoint not available
+                ]);
 
-            setRecords(data);
+                // Normalize data for charts
+                const normalizedData = elevages
+                    .filter(item => !item.deleted && !item.is_deleted)
+                    .map(item => ({
+                        ...item,
+                        fermeId: item.fermeId || item.ferme_id,
+                        parcId: item.parcId || item.parc_id,
+                        batimentId: item.batimentId || item.batiment_id,
+                        deleted: item.deleted || item.is_deleted || false
+                    }));
 
-            // Calculate Stats
-            const totalEntries = data.length;
-            const totalQuantity = data.reduce((acc, curr) => acc + Number(curr.quantite), 0);
-            const uniqueLots = new Set(data.map(item => item.lot)).size;
+                setAllData(normalizedData);
+                setFermes(fermesList);
+                setKpis(globalKpis);
 
-            setStats({ totalEntries, totalQuantity, uniqueLots });
-
-            // Prepare Chart Data
-            // Group by date (assumes date strings)
-            const dateMap = {};
-            data.forEach(item => {
-                if (!dateMap[item.date]) dateMap[item.date] = [];
-                dateMap[item.date].push(item);
-            });
-            const sortedDates = Object.keys(dateMap).sort();
-
-            // Weight & Homogeneity: average poids per date and homogeneity (%) per date
-            const avgPoids = [];
-            const homogeneity = [];
-            sortedDates.forEach(date => {
-                const rows = dateMap[date];
-                const poidsVals = rows.map(r => Number(r.poids || 0)).filter(v => !isNaN(v));
-                const mean = poidsVals.reduce((a, b) => a + b, 0) / (poidsVals.length || 1);
-                const variance = poidsVals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (poidsVals.length || 1);
-                const sd = Math.sqrt(variance);
-                const homog = mean > 0 ? Math.max(0, Math.min(100, 100 - (sd / mean) * 100)) : 0;
-                avgPoids.push(Math.round(mean));
-                homogeneity.push(Math.round(homog * 10) / 10);
-            });
-
-            const weightData = {
-                labels: sortedDates,
-                datasets: [
-                    {
-                        label: 'Poids moyen (g)',
-                        data: avgPoids,
-                        borderColor: 'rgb(99, 102, 241)',
-                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                        tension: 0.3,
-                        yAxisID: 'y',
-                    },
-                    {
-                        label: 'Homogénéité (%)',
-                        data: homogeneity,
-                        borderColor: 'rgb(16, 185, 129)',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        tension: 0.3,
-                        yAxisID: 'y1',
-                    },
-                ],
-            };
-
-            // Consumption: quantity per date + cumulative
-            const quantities = sortedDates.map(date => dateMap[date].reduce((s, r) => s + Number(r.quantite || 0), 0));
-            const cumulative = [];
-            quantities.reduce((acc, cur, idx) => { const sum = acc + cur; cumulative[idx] = sum; return sum; }, 0);
-
-            const consumptionData = {
-                labels: sortedDates,
-                datasets: [
-                    {
-                        label: 'Consommation (kg)',
-                        data: quantities,
-                        borderColor: 'rgb(14, 165, 233)',
-                        backgroundColor: 'rgba(14, 165, 233, 0.15)',
-                        tension: 0.3,
-                    },
-                    {
-                        label: 'Consommation cumulée (kg)',
-                        data: cumulative,
-                        borderColor: 'rgb(236, 72, 153)',
-                        backgroundColor: 'rgba(236, 72, 153, 0.15)',
-                        tension: 0.3,
-                    },
-                ],
-            };
-
-            // Mortality: average mortalite per date and cumulative mortality
-            const mortAvg = sortedDates.map(date => {
-                const vals = dateMap[date].map(r => Number(r.mortalite || 0)).filter(v => !isNaN(v));
-                const avg = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
-                return Math.round(avg * 10) / 10;
-            });
-            const mortCumulative = [];
-            mortAvg.reduce((acc, cur, idx) => { const sum = acc + cur; mortCumulative[idx] = Math.round(sum * 10) / 10; return sum; }, 0);
-
-            const mortalityData = {
-                labels: sortedDates,
-                datasets: [
-                    {
-                        label: 'Mortalité (%)',
-                        data: mortAvg,
-                        borderColor: 'rgb(239, 68, 68)',
-                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                        tension: 0.3,
-                    },
-                    {
-                        label: 'Mortalité cumulée (%)',
-                        data: mortCumulative,
-                        borderColor: 'rgb(250, 204, 21)',
-                        backgroundColor: 'rgba(250, 204, 21, 0.15)',
-                        tension: 0.3,
-                    },
-                ],
-            };
-
-            setChartData({ weight: weightData, consumption: consumptionData, mortality: mortalityData });
-            setLoading(false);
+                console.log('Dashboard data loaded:', {
+                    records: normalizedData.length,
+                    fermes: fermesList.length,
+                    kpis: globalKpis
+                });
+            } catch (error) {
+                console.error("Error fetching dashboard data:", error);
+            } finally {
+                setLoading(false);
+            }
         };
 
         fetchData();
     }, []);
 
-    if (loading) return <div className="p-10 text-center">Chargement du dashboard...</div>;
+    // Calculate KPIs from data if API not available
+    const calculatedKpis = useMemo(() => {
+        if (kpis) return kpis;
 
-    const kpis = [
-        { label: 'Total Enregistrements', value: stats.totalEntries, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Quantité Totale (kg)', value: stats.totalQuantity.toLocaleString(), icon: Package, color: 'text-purple-600', bg: 'bg-purple-50' },
-        { label: 'Fermes actifs', value: stats.uniqueLots, icon: Users, color: 'text-green-600', bg: 'bg-green-50' },
-    ];
+        if (allData.length === 0) return null;
+
+        const latestRecords = allData.slice(0, 50); // Last 50 records
+
+        const totalEffectif = latestRecords.reduce((sum, r) =>
+            sum + (r.effectif_coq || 0) + (r.effectif_poule || 0), 0);
+
+        const avgPoidsCoq = latestRecords
+            .filter(r => r.poids_coq)
+            .reduce((sum, r, _, arr) => sum + r.poids_coq / arr.length, 0);
+
+        const avgPoidsPoule = latestRecords
+            .filter(r => r.poids_poule)
+            .reduce((sum, r, _, arr) => sum + r.poids_poule / arr.length, 0);
+
+        const avgHomog = latestRecords
+            .filter(r => r.homog_pct)
+            .reduce((sum, r, _, arr) => sum + r.homog_pct / arr.length, 0);
+
+        const totalMort = latestRecords.reduce((sum, r) =>
+            sum + (r.mort_coq_n || 0) + (r.mort_poule_n || 0), 0);
+
+        const mortalityRate = totalEffectif > 0 ? (totalMort / totalEffectif * 100) : 0;
+
+        return {
+            total_fermes: fermes.length,
+            total_parcs: new Set(allData.map(r => r.parcId)).size,
+            total_effectif: totalEffectif,
+            avg_poids_coq: Math.round(avgPoidsCoq * 10) / 10,
+            avg_poids_poule: Math.round(avgPoidsPoule * 10) / 10,
+            avg_homog_pct: Math.round(avgHomog * 10) / 10,
+            mortality_rate: Math.round(mortalityRate * 100) / 100
+        };
+    }, [allData, fermes, kpis]);
+
+    // Summary data logic
+    const summaryData = useMemo(() => {
+        return fermes.map(ferme => {
+            const farmRecords = allData
+                .filter(d => String(d.fermeId) === String(ferme.id))
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            const latest = farmRecords[0] || {};
+
+            const totalEff = (parseFloat(latest.effectif_poule) || 0) + (parseFloat(latest.effectif_coq) || 0);
+            const totalMort = (parseFloat(latest.mort_poule_n) || 0) + (parseFloat(latest.mort_coq_n) || 0);
+
+            return {
+                id: ferme.id,
+                name: ferme.name,
+                lot: ferme.lot,
+                age: latest.age || '-',
+                effectif: totalEff || '-',
+                poids: latest.poids_poule || '-',
+                mortPct: totalEff > 0 ? ((totalMort / totalEff) * 100).toFixed(2) : '-'
+            };
+        });
+    }, [fermes, allData]);
+
+    const filteredSummary = summaryData.filter(s =>
+        (s.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (s.lot || '').toLowerCase().includes(search.toLowerCase())
+    );
+
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center h-[60vh]">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            <p className="text-gray-500 mt-4 font-medium italic">Chargement des performances globales...</p>
+        </div>
+    );
+
+    const KpiCard = ({ icon: Icon, title, value, subtitle, color = "blue" }) => (
+        <Card className="p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-sm text-gray-500 font-medium mb-1">{title}</p>
+                    <p className={`text-3xl font-bold text-${color}-600`}>{value || '-'}</p>
+                    {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+                </div>
+                <div className={`p-3 bg-${color}-50 rounded-xl`}>
+                    <Icon size={28} className={`text-${color}-600`} />
+                </div>
+            </div>
+        </Card>
+    );
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-                <div className="text-sm text-gray-500">Aperçu général de l'activité</div>
+        <div className="space-y-8 animate-fadeIn w-full">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-4xl font-black tracking-tight text-gray-900 flex items-center gap-3">
+                        <div className="p-2 bg-primary-100 rounded-xl text-primary-600">
+                            <LayoutDashboard size={32} />
+                        </div>
+                        Tableau de Bord Global
+                    </h1>
+                    <p className="text-gray-500 mt-2 font-medium">Vue d'ensemble et courbes de performance de toutes les fermes</p>
+                </div>
+                <div className="flex items-center gap-3 bg-primary-50 px-5 py-3 rounded-2xl text-primary-700 font-bold border border-primary-100 shadow-sm">
+                    <TrendingUp size={22} />
+                    <span>{allData.length} enregistrements</span>
+                </div>
             </div>
 
-            {/* KPIs */}
-            <div className="grid gap-4 md:grid-cols-3">
-                {kpis.map((kpi, index) => (
-                    <Card
-                        key={index}
-                        className={`hover:shadow-lg transition-shadow cursor-pointer`}
-                        onClick={() => {
-                            if (kpi.label === 'Total Enregistrements') setModalType('records');
-                            if (kpi.label === 'Quantité Totale (kg)') setModalType('quantity');
-                            if (kpi.label === 'Fermes actifs') setModalType('fermes');
-                            setShowModal(true);
-                        }}
-                        role="button"
-                        aria-pressed={showModal}
-                    >
-                        <CardContent className="p-6 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-gray-500">{kpi.label}</p>
-                                <h3 className="text-2xl font-bold mt-2">{kpi.value}</h3>
-                            </div>
-                            <div className={`p-3 rounded-full ${kpi.bg}`}>
-                                <kpi.icon className={`h-6 w-6 ${kpi.color}`} />
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+            {/* KPI Cards */}
+            {calculatedKpis && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <KpiCard
+                        icon={Grid3x3}
+                        title="Total Parcs"
+                        value={calculatedKpis.total_parcs}
+                        subtitle={`${calculatedKpis.total_fermes} fermes`}
+                        color="blue"
+                    />
+                    <KpiCard
+                        icon={Users}
+                        title="Effectif Total"
+                        value={calculatedKpis.total_effectif?.toLocaleString()}
+                        subtitle="Coqs + Poules"
+                        color="green"
+                    />
+                    <KpiCard
+                        icon={Scale}
+                        title="Poids Moyen"
+                        value={`${calculatedKpis.avg_poids_poule}g`}
+                        subtitle={`Homog: ${calculatedKpis.avg_homog_pct}%`}
+                        color="purple"
+                    />
+                    <KpiCard
+                        icon={AlertTriangle}
+                        title="Taux Mortalité"
+                        value={`${calculatedKpis.mortality_rate}%`}
+                        subtitle="Moyenne globale"
+                        color="red"
+                    />
+                </div>
+            )}
 
-            {/* Generic Modal for KPIs */}
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={
-                modalType === 'records' ? `Tous les enregistrements (${records.length})` :
-                modalType === 'quantity' ? `Détails — Quantité totale: ${stats.totalQuantity.toLocaleString()} kg` :
-                `Fermes actives (${stats.uniqueLots})`
-            }>
-                <div className="max-h-80 overflow-auto">
-                    {modalType === 'records' && (
-                        <table className="w-full text-sm table-auto border-collapse">
-                            <thead>
-                                <tr className="text-left text-gray-600">
-                                    <th className="p-2 border-b">Date</th>
-                                    <th className="p-2 border-b">Lot</th>
-                                    <th className="p-2 border-b">Ferme</th>
-                                    <th className="p-2 border-b">Aliment</th>
-                                    <th className="p-2 border-b">Quantité</th>
-                                    <th className="p-2 border-b">Poids</th>
-                                    <th className="p-2 border-b">Mortalité</th>
-                                    <th className="p-2 border-b">Observation</th>
+            {/* Performance Curves Section */}
+            <section className="space-y-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-2 h-8 bg-primary-600 rounded-full"></div>
+                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Courbes de Performance</h2>
+                    <div className="ml-auto px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600">
+                        {allData.length} points de données
+                    </div>
+                </div>
+                <ElevageCharts data={allData} />
+            </section>
+
+            {/* Summary Table Section */}
+            <section className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
+                        <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Récapitulatif des Fermes</h2>
+                    </div>
+                    <div className="relative w-full sm:w-80 shadow-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                        <input
+                            type="text"
+                            placeholder="Rechercher une ferme ou un lot..."
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all shadow-sm"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <Card className="overflow-hidden border-0 shadow-2xl rounded-3xl">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-sm text-center">
+                            <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-black border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-5">Ferme</th>
+                                    <th className="px-6 py-5">Lot Actuel</th>
+                                    <th className="px-6 py-5">Âge</th>
+                                    <th className="px-6 py-5">Effectif Total</th>
+                                    <th className="px-6 py-5">Poids (g)</th>
+                                    <th className="px-6 py-5 text-red-600">Mortalité %</th>
+                                    <th className="px-6 py-5">Statut</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {records.map((r) => (
-                                    <tr key={r.id} className="odd:bg-gray-50">
-                                        <td className="p-2 align-top border-b">{r.date}</td>
-                                        <td className="p-2 align-top border-b">{r.lot}</td>
-                                        <td className="p-2 align-top border-b">{r.ferme}</td>
-                                        <td className="p-2 align-top border-b">{r.aliment}</td>
-                                        <td className="p-2 align-top border-b">{r.quantite}</td>
-                                        <td className="p-2 align-top border-b">{r.poids}</td>
-                                        <td className="p-2 align-top border-b">{r.mortalite}</td>
-                                        <td className="p-2 align-top border-b">{r.observation}</td>
+                            <tbody className="divide-y divide-gray-50">
+                                {filteredSummary.length > 0 ? filteredSummary.map((row) => (
+                                    <tr key={row.id} className="hover:bg-primary-50/40 transition-all duration-300 group cursor-default">
+                                        <td className="px-6 py-5 font-black text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight">{row.name}</td>
+                                        <td className="px-6 py-5">
+                                            <span className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border border-gray-200 group-hover:bg-white transition-colors">
+                                                {row.lot}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-5 font-bold text-gray-700">{row.age}</td>
+                                        <td className="px-6 py-5 font-mono font-black text-gray-800 text-lg">{row.effectif}</td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center justify-center gap-1.5 font-mono text-primary-600 font-black text-lg bg-primary-50/50 py-1.5 rounded-xl border border-primary-100/50">
+                                                {row.poids}
+                                                <span className="text-[10px] text-primary-400 font-bold">g</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <span className="text-red-600 font-black text-lg">{row.mortPct}%</span>
+                                        </td>
+                                        <td className="px-6 py-5 text-center">
+                                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full border border-green-100 shadow-sm">
+                                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Actif</span>
+                                            </div>
+                                        </td>
                                     </tr>
-                                ))}
+                                )) : (
+                                    <tr>
+                                        <td colSpan="7" className="px-6 py-16 text-center">
+                                            <div className="flex flex-col items-center justify-center text-gray-300">
+                                                <Search size={48} className="mb-4 opacity-20" />
+                                                <p className="text-lg font-bold">Aucune ferme ne correspond à votre recherche.</p>
+                                                <p className="text-sm font-medium italic">Essayez un autre mot-clé ou vérifiez l'orthographe.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
-                    )}
-
-                    {modalType === 'quantity' && (
-                        <div>
-                            <div className="mb-4 text-sm text-gray-700">Total quantité: <strong>{stats.totalQuantity.toLocaleString()} kg</strong></div>
-                            <table className="w-full text-sm table-auto border-collapse">
-                                <thead>
-                                    <tr className="text-left text-gray-600">
-                                        <th className="p-2 border-b">Date</th>
-                                        <th className="p-2 border-b">Lot</th>
-                                        <th className="p-2 border-b">Ferme</th>
-                                        <th className="p-2 border-b">Quantité</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {records.slice().sort((a,b) => Number(b.quantite) - Number(a.quantite)).map(r => (
-                                        <tr key={r.id} className="odd:bg-gray-50">
-                                            <td className="p-2 align-top border-b">{r.date}</td>
-                                            <td className="p-2 align-top border-b">{r.lot}</td>
-                                            <td className="p-2 align-top border-b">{r.ferme}</td>
-                                            <td className="p-2 align-top border-b">{r.quantite}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {modalType === 'fermes' && (
-                        <div>
-                            <table className="w-full text-sm table-auto border-collapse">
-                                <thead>
-                                    <tr className="text-left text-gray-600">
-                                        <th className="p-2 border-b">Ferme</th>
-                                        <th className="p-2 border-b">Nombre d'enregistrements</th>
-                                        <th className="p-2 border-b">Quantité totale</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {(() => {
-                                        const map = {};
-                                        records.forEach(r => {
-                                            if (!map[r.ferme]) map[r.ferme] = { count: 0, qty: 0 };
-                                            map[r.ferme].count += 1;
-                                            map[r.ferme].qty += Number(r.quantite || 0);
-                                        });
-                                        return Object.keys(map).map(f => (
-                                            <tr key={f} className="odd:bg-gray-50">
-                                                <td className="p-2 align-top border-b">{f}</td>
-                                                <td className="p-2 align-top border-b">{map[f].count}</td>
-                                                <td className="p-2 align-top border-b">{map[f].qty}</td>
-                                            </tr>
-                                        ));
-                                    })()}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-            </Modal>
-
-            {/* Charts */}
-            <div className="grid gap-6 md:grid-cols-2">
-                <Card className="p-4">
-                    <CardHeader>
-                            <CardTitle className="text-gray-700 flex items-center gap-2">
-                                <TrendingUp size={20} />
-                                EVOLUTION DU POIDS ET HOMOGENEITE
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-80">
-                            <Line
-                                options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'top' } },
-                                    scales: {
-                                        y: { type: 'linear', position: 'left', title: { display: true, text: 'Poids (g)' } },
-                                        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Homogénéité (%)' } },
-                                    },
-                                }}
-                                data={chartData.weight}
-                            />
-                        </CardContent>
+                    </div>
                 </Card>
-
-                <Card className="p-4">
-                    <CardHeader>
-                            <CardTitle className="text-gray-700 flex items-center gap-2">
-                                <Package size={20} />
-                                EVOLUTION DE LA CONSOMMATION
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-80">
-                            <Line
-                                options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'top' } },
-                                    scales: { y: { title: { display: true, text: 'Quantité (kg)' } } },
-                                }}
-                                data={chartData.consumption}
-                            />
-                        </CardContent>
-                </Card>
-            </div>
-
-            {/* Mortality chart placed at the bottom */}
-            <div className="mt-6">
-                <Card className="p-4">
-                    <CardHeader>
-                        <CardTitle className="text-gray-700 flex items-center gap-2">
-                            <TrendingUp size={20} />
-                            EVOLUTION DE LA MORTALITE
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-64">
-                        <Line options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }} data={chartData.mortality} />
-                    </CardContent>
-                </Card>
-            </div>
+            </section>
         </div>
     );
 };
